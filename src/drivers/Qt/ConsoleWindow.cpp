@@ -99,6 +99,7 @@
 #include "Qt/RamSearch.h"
 #include "Qt/keyscan.h"
 #include "Qt/nes_shm.h"
+#include "Qt/NetPlay.h"
 #include "Qt/TasEditor/TasEditorWindow.h"
 
 #ifdef __APPLE__
@@ -259,6 +260,8 @@ consoleWin_t::consoleWin_t(QWidget *parent)
 	aviDiskThread = new AviRecordDiskThread_t(this);
 
 	scrHandlerConnected = false;
+
+	NetPlayServer::Create(this);
 }
 
 consoleWin_t::~consoleWin_t(void)

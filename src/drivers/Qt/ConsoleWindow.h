@@ -351,6 +351,8 @@ class  consoleWin_t : public QMainWindow
 		void openCodeDataLogger(void);
 		void openTraceLogger(void);
 		void openFamilyKeyboard(void);
+		void openNetPlayHostWindow(void);
+		void openNetPlayJoinWindow(void);
 		void toggleAutoResume(void);
 		void updatePeriodic(void);
 		void changeState0(void);

@@ -260,8 +260,6 @@ consoleWin_t::consoleWin_t(QWidget *parent)
 	aviDiskThread = new AviRecordDiskThread_t(this);
 
 	scrHandlerConnected = false;
-
-	NetPlayServer::Create(this);
 }
 
 consoleWin_t::~consoleWin_t(void)
@@ -1667,6 +1665,26 @@ void consoleWin_t::createMainMenu(void)
 
 	toolsMenu->addAction(act);
 
+	// Tools -> NetPlay
+	subMenu = toolsMenu->addMenu( tr("&NetPlay") );
+	//subMenu->setIcon( style()->standardIcon( QStyle::SP_DialogHelpButton ) );
+
+	// Tools -> NetPlay -> Host
+	act = new QAction(tr("&Host"), this);
+	//act->setShortcut( QKeySequence(tr("Shift+F7")));
+	act->setStatusTip(tr("Host Game Window"));
+	connect(act, SIGNAL(triggered()), this, SLOT(openNetPlayHostWindow(void)) );
+
+	subMenu->addAction(act);
+
+	// Tools -> NetPlay -> Join
+	act = new QAction(tr("&Join"), this);
+	//act->setShortcut( QKeySequence(tr("Shift+F7")));
+	act->setStatusTip(tr("Join Game Window"));
+	connect(act, SIGNAL(triggered()), this, SLOT(openNetPlayJoinWindow(void)) );
+
+	subMenu->addAction(act);
+
 	// Tools -> AVI RIFF Viewer
 	act = new QAction(tr("&AVI RIFF Viewer ..."), this);
 	//act->setShortcut( QKeySequence(tr("Shift+F7")));
@@ -2951,6 +2969,28 @@ void consoleWin_t::openPaletteEditorWin(void)
 	//printf("Open Palette Editor Window\n");
 	
    win = new PaletteEditorDialog_t(this);
+	
+   win->show();
+}
+
+void consoleWin_t::openNetPlayHostWindow(void)
+{
+	NetPlayHostDialog *win;
+
+	//printf("Open Palette Editor Window\n");
+	
+   win = new NetPlayHostDialog(this);
+	
+   win->show();
+}
+
+void consoleWin_t::openNetPlayJoinWindow(void)
+{
+	NetPlayJoinDialog *win;
+
+	//printf("Open Palette Editor Window\n");
+	
+   win = new NetPlayJoinDialog(this);
 	
    win->show();
 }

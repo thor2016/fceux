@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <list>
+
 #include <QWidget>
 #include <QDialog>
 #include <QVBoxLayout>
@@ -21,6 +23,7 @@
 #include <QTcpSocket>
 #include <QTcpServer>
 
+class NetPlayClient;
 
 class NetPlayServer : public QTcpServer
 {
@@ -34,9 +37,19 @@ class NetPlayServer : public QTcpServer
 
 		static int Create(QObject *parent = 0);
 
+		bool removeClient(NetPlayClient *client, bool markForDelete = false);
+
+		int closeAllConnections(void);
+
 	private:
 		static NetPlayServer *instance;
 
+		void processPendingConnections(void);
+
+		std::list <NetPlayClient*> clientList;
+
+	public slots:
+		void newConnectionRdy(void);
 };
 
 class NetPlayClient : public QObject
@@ -51,11 +64,22 @@ class NetPlayClient : public QObject
 
 		static int Create(QObject *parent = 0);
 
+		int connectToHost( const QString host, int port );
+
+		bool isConnected(void);
+
+		void setSocket(QTcpSocket *s);
+
 	private:
+		int createSocket(void);
+
 		static NetPlayClient *instance;
 
 		QTcpSocket *sock;
 
+	public slots:
+		void onConnect(void);
+		void onDisconnect(void);
 };
 
 

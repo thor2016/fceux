@@ -31,6 +31,7 @@ NetPlayServer::NetPlayServer(QObject *parent)
 {
 	instance = this;
 
+	connect(this, SIGNAL(newConnection(void)), this, SLOT(newConnectionRdy(void)));
 }
 
 
@@ -38,6 +39,7 @@ NetPlayServer::~NetPlayServer(void)
 {
 	instance = nullptr;
 
+	closeAllConnections();
 }
 
 int NetPlayServer::Create(QObject *parent)
@@ -51,6 +53,73 @@ int NetPlayServer::Create(QObject *parent)
 			printf("Error Creating Netplay Server!!!\n");
 		}
 	}
+	return 0;
+}
+
+void NetPlayServer::newConnectionRdy(void)
+{
+	printf("New Connection Ready!\n");
+
+	processPendingConnections();
+}
+
+void NetPlayServer::processPendingConnections(void)
+{
+	QTcpSocket *newSock;
+
+	newSock = nextPendingConnection();
+
+	while (newSock)
+	{
+		NetPlayClient *client = new NetPlayClient(this);
+
+		client->setSocket(newSock);
+
+		clientList.push_back(client);
+
+		newSock = nextPendingConnection();
+
+		printf("Added Client: %p   %zu\n", client, clientList.size() );
+	}
+}
+
+bool NetPlayServer::removeClient(NetPlayClient *client, bool markForDelete)
+{
+	bool removed = false;
+	std::list <NetPlayClient*>::iterator it;
+
+	it = clientList.begin();
+       
+	while (it != clientList.end())
+	{
+		if (client == *it)
+		{
+			if (markForDelete)
+			{
+				client->deleteLater();
+			}
+
+			it = clientList.erase(it);
+		}
+		else
+		{
+			it++;
+		}
+	}
+
+	return removed;
+}
+
+int NetPlayServer::closeAllConnections(void)
+{
+	std::list <NetPlayClient*>::iterator it;
+
+	for (it = clientList.begin(); it != clientList.end(); it++)
+	{
+		delete *it;
+	}
+	clientList.clear();
+
 	return 0;
 }
 //-----------------------------------------------------------------------------
@@ -75,13 +144,19 @@ NetPlayClient::~NetPlayClient(void)
 		instance = nullptr;
 	}
 
+	if (sock != nullptr)
+	{
+		delete sock; sock = nullptr;
+	}
+	printf("NetPlayClient Destructor\n");
+
 }
 
 int NetPlayClient::Create(QObject *parent)
 {
 	if (NetPlayClient::GetInstance() == nullptr)
 	{
-		NetPlayClient *client = new NetPlayClient(parent);
+		NetPlayClient *client = new NetPlayClient(parent, true);
 
 		if (client == nullptr)
 		{
@@ -89,6 +164,69 @@ int NetPlayClient::Create(QObject *parent)
 		}
 	}
 	return 0;
+}
+//-----------------------------------------------------------------------------
+void NetPlayClient::setSocket(QTcpSocket *s)
+{
+	sock = s;
+
+	if (sock != nullptr)
+	{
+		connect(sock, SIGNAL(connected(void))   , this, SLOT(onConnect(void)));
+		connect(sock, SIGNAL(disconnected(void)), this, SLOT(onDisconnect(void)));
+	}
+}
+//-----------------------------------------------------------------------------
+int NetPlayClient::createSocket(void)
+{
+	if (sock == nullptr)
+	{
+		sock = new QTcpSocket(this);
+	}
+
+	connect(sock, SIGNAL(connected(void))   , this, SLOT(onConnect(void)));
+	connect(sock, SIGNAL(disconnected(void)), this, SLOT(onDisconnect(void)));
+	
+	return 0;
+}
+//-----------------------------------------------------------------------------
+int NetPlayClient::connectToHost( const QString host, int port )
+{
+	createSocket();
+
+	sock->connectToHost( host, port );
+
+	//if (sock->waitForConnected(10000))
+	//{
+    	//	qDebug("Connected!");
+	//}
+	//else
+	//{
+    	//	qDebug("Failed to Connect!");
+	//}
+
+
+	return 0;
+}
+//-----------------------------------------------------------------------------
+void NetPlayClient::onConnect(void)
+{
+	printf("Client Connected!!!\n");
+}
+//-----------------------------------------------------------------------------
+void NetPlayClient::onDisconnect(void)
+{
+	printf("Client Disconnected!!!\n");
+
+	NetPlayServer *server = NetPlayServer::GetInstance();
+
+	if (server)
+	{
+		if (server->removeClient(this))
+		{
+			deleteLater();
+		}
+	}
 }
 //-----------------------------------------------------------------------------
 //--- NetPlayHostDialog
@@ -265,7 +403,10 @@ void NetPlayJoinDialog::onJoinClicked(void)
 
 	client = NetPlayClient::GetInstance();
 
-	//client->connectToHost( portEntry->value() );
+	if (client->connectToHost( hostEntry->text(), portEntry->value() ))
+	{
+		printf("Failed to connect to Host\n");
+	}
 
 	//printf("Close Window\n");
 	done(0);

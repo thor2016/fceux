@@ -4543,6 +4543,8 @@ void consoleWin_t::updatePeriodic(void)
 		closeRequested = false;
 	}
 
+	NetPlayPeriodicUpdate();
+
 	updateCounter++;
 
    return;

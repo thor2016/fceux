@@ -20,6 +20,7 @@
 
 #include "Qt/NetPlay.h"
 #include "Qt/ConsoleWindow.h"
+#include "Qt/NetPlayMsgDef.h"
 
 //-----------------------------------------------------------------------------
 //--- NetPlayServer
@@ -40,6 +41,8 @@ NetPlayServer::~NetPlayServer(void)
 	instance = nullptr;
 
 	closeAllConnections();
+
+	printf("NetPlayServer Destructor\n");
 }
 
 int NetPlayServer::Create(QObject *parent)
@@ -80,6 +83,7 @@ void NetPlayServer::processPendingConnections(void)
 		newSock = nextPendingConnection();
 
 		printf("Added Client: %p   %zu\n", client, clientList.size() );
+
 	}
 }
 
@@ -122,6 +126,12 @@ int NetPlayServer::closeAllConnections(void)
 
 	return 0;
 }
+
+//-----------------------------------------------------------------------------
+void NetPlayServer::update(void)
+{
+
+}
 //-----------------------------------------------------------------------------
 //--- NetPlayClient
 //-----------------------------------------------------------------------------
@@ -149,7 +159,6 @@ NetPlayClient::~NetPlayClient(void)
 		delete sock; sock = nullptr;
 	}
 	printf("NetPlayClient Destructor\n");
-
 }
 
 int NetPlayClient::Create(QObject *parent)
@@ -227,6 +236,11 @@ void NetPlayClient::onDisconnect(void)
 			deleteLater();
 		}
 	}
+}
+//-----------------------------------------------------------------------------
+void NetPlayClient::update(void)
+{
+
 }
 //-----------------------------------------------------------------------------
 //--- NetPlayHostDialog
@@ -411,4 +425,23 @@ void NetPlayJoinDialog::onJoinClicked(void)
 	//printf("Close Window\n");
 	done(0);
 	deleteLater();
+}
+//----------------------------------------------------------------------------
+//---- Global Functions
+//----------------------------------------------------------------------------
+void NetPlayPeriodicUpdate(void)
+{
+	NetPlayClient *client = NetPlayClient::GetInstance();
+
+	if (client)
+	{
+		client->update();
+	}
+
+	NetPlayServer *server = NetPlayServer::GetInstance();
+
+	if (server)
+	{
+		server->update();
+	}
 }

@@ -41,6 +41,8 @@ class NetPlayServer : public QTcpServer
 
 		int closeAllConnections(void);
 
+		void update(void);
+
 	private:
 		static NetPlayServer *instance;
 
@@ -69,6 +71,8 @@ class NetPlayClient : public QObject
 		bool isConnected(void);
 
 		void setSocket(QTcpSocket *s);
+
+		void update(void);
 
 	private:
 		int createSocket(void);
@@ -122,3 +126,5 @@ public slots:
 	void onJoinClicked(void);
 
 };
+
+void NetPlayPeriodicUpdate(void);

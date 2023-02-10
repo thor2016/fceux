@@ -481,7 +481,7 @@ void HighlightSyntax(HWND hWnd, int lines)
 	{
 		commentline = false;
 		wordbreak = SendDlgItemMessage(hWnd, IDC_DEBUGGER_DISASSEMBLY, EM_FINDWORDBREAK, (WPARAM)WB_RIGHT, (LPARAM)newline.chrg.cpMin + 21);
-		for (int ch = newline.chrg.cpMin; ; ch++)
+		for (int ch = newline.chrg.cpMin; debug_wstr[ch] != 0; ch++)
 		{
 			if (debug_wstr[ch] == L'=' || debug_wstr[ch] == L'@' || debug_wstr[ch] == L'\n' || debug_wstr[ch] == L'-' || debug_wstr[ch] == L';')
 			{
@@ -2422,7 +2422,7 @@ INT_PTR CALLBACK DebuggerCallB(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lP
 				int mouse_x = GET_X_LPARAM(lParam);
 				int mouse_y = GET_Y_LPARAM(lParam);
 				//mbg merge 7/18/06 changed pausing check
-				if (FCEUI_EmulationPaused() && (mouse_x > 6) && (mouse_x < 30) && (mouse_y > 10))
+				if ((mouse_x > 6) && (mouse_x < 30) && (mouse_y > 10))
 				{
 					int tmp = (mouse_y - 10) / debugSystem->disasmFontHeight;
 					if (tmp < (int)disassembly_addresses.size())
@@ -2752,7 +2752,7 @@ void UpdatePatcher(HWND hwndDlg){
 		EnableWindow(GetDlgItem(hwndDlg,IDC_ROMPATCHER_PATCH_DATA),FALSE);
 		EnableWindow(GetDlgItem(hwndDlg,IDC_ROMPATCHER_BTN_APPLY),FALSE);
 	}
-	if(GameInfo->type != GIT_CART)EnableWindow(GetDlgItem(hwndDlg,IDC_ROMPATCHER_BTN_SAVE),FALSE);
+	if((GameInfo->type != GIT_CART) && (GameInfo->type != GIT_VSUNI))EnableWindow(GetDlgItem(hwndDlg,IDC_ROMPATCHER_BTN_SAVE),FALSE);
 	else EnableWindow(GetDlgItem(hwndDlg,IDC_ROMPATCHER_BTN_SAVE),TRUE);
 }
 

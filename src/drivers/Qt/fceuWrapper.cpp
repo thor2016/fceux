@@ -888,9 +888,9 @@ int  fceuWrapperInit( int argc, char *argv[] )
 			extern std::vector<std::string> subtitleMessages;
 			float fps = (md.palFlag == 0 ? 60.0988 : 50.0069); // NTSC vs PAL
 			float subduration = 3; // seconds for the subtitles to be displayed
-			for (int i = 0; i < subtitleFrames.size(); i++)
+			for (size_t i = 0; i < subtitleFrames.size(); i++)
 			{
-				fprintf(srtfile, "%i\n", i+1); // starts with 1, not 0
+				fprintf(srtfile, "%zi\n", i+1); // starts with 1, not 0
 				double seconds, ms, endseconds, endms;
 				seconds = subtitleFrames[i]/fps;
 				if (i+1 < subtitleFrames.size()) // there's another subtitle coming after this one
@@ -974,16 +974,29 @@ int  fceuWrapperInit( int argc, char *argv[] )
 
 	if (romIndex >= 0)
 	{
-		// load the specified game
-		error = LoadGame(argv[romIndex]);
-		if (error != 1) 
+		QFileInfo fi( argv[romIndex] );
+
+		// Resolve absolute path to file
+		if ( fi.exists() )
 		{
-			DriverKill();
-			SDL_Quit();
+			std::string fullpath = fi.canonicalFilePath().toStdString().c_str();
+
+			error = LoadGame( fullpath.c_str() );
+
+			if (error != 1)
+			{
+				DriverKill();
+				SDL_Quit();
+				return -1;
+			}
+			g_config->setOption("SDL.LastOpenFile", fullpath.c_str() );
+			g_config->save();
+		}
+		else
+		{
+			// File was not found
 			return -1;
 		}
-		g_config->setOption("SDL.LastOpenFile", argv[romIndex]);
-		g_config->save();
 	}
 
 	aviRecordInit();
@@ -1497,7 +1510,7 @@ FCEUFILE* FCEUD_OpenArchive(ArchiveScanRecord& asr, std::string& fname, std::str
 
 		for (size_t i=0; i<asr.files.size(); i++)
 		{
-			char base[512], suffix[32];
+			char base[512], suffix[128];
 
 			getFileBaseName( asr.files[i].name.c_str(), base, suffix );
 

@@ -36,6 +36,7 @@
 #include <QWindow>
 #include <QScreen>
 #include <QHeaderView>
+#include <QFileInfo>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QInputDialog>
@@ -436,6 +437,7 @@ void consoleWin_t::winScreenChanged(QScreen *scr)
 void consoleWin_t::winActiveChanged(void)
 {
 	QWidget *w;
+	bool muteWindow = false;
 
 	w = this->window();
 
@@ -451,15 +453,16 @@ void consoleWin_t::winActiveChanged(void)
 			{
 				if ( hdl->isActive() )
 				{
-					FCEUD_MuteSoundOutput(false);
+					muteWindow = false;
 				}
 				else
 				{
-					FCEUD_MuteSoundOutput(true);
+					muteWindow = true;
 				}
 			}
 		}
 	}
+	FCEUD_MuteSoundWindow(muteWindow);
 }
 
 QSize consoleWin_t::calcRequiredSize(void)
@@ -777,10 +780,41 @@ void consoleWin_t::dropEvent(QDropEvent *event)
 	{
 		QList<QUrl> urls = event->mimeData()->urls();
 
-		FCEU_WRAPPER_LOCK();
-		LoadGame( urls[0].toString( QUrl::PreferLocalFile ).toStdString().c_str() );
-		FCEU_WRAPPER_UNLOCK();
-		event->accept();
+		QString filename = urls[0].toString( QUrl::PreferLocalFile );
+
+		QFileInfo fi( filename );
+		QString suffix = fi.suffix();
+
+		//printf("DragNDrop Suffix: %s\n", suffix.toStdString().c_str() );
+
+		if ( suffix.compare("lua", Qt::CaseInsensitive) == 0 )
+		{
+			int luaLoadSuccess;
+
+			FCEU_WRAPPER_LOCK();
+			luaLoadSuccess = FCEU_LoadLuaCode( filename.toStdString().c_str() );
+			FCEU_WRAPPER_UNLOCK();
+
+			if (luaLoadSuccess)
+			{
+				g_config->setOption("SDL.LastLoadLua", filename.toStdString().c_str());
+			}
+			event->accept();
+		}
+		else
+		{
+			int romLoadSuccess;
+
+			FCEU_WRAPPER_LOCK();
+			romLoadSuccess = LoadGame( filename.toStdString().c_str() );
+			FCEU_WRAPPER_UNLOCK();
+
+			if (!romLoadSuccess)
+			{
+				printf("DragNDrop ROM Load Failed for %s\n", filename.toStdString().c_str() );
+			}
+			event->accept();
+		}
 	}
 }
 
@@ -851,6 +885,7 @@ void consoleWin_t::initHotKeys(void)
 	Hotkeys[HK_FRAME_ADVANCE].getShortcut()->setEnabled(false);
 	Hotkeys[HK_TURBO        ].getShortcut()->setEnabled(false);
 
+	connect( Hotkeys[ HK_VOLUME_MUTE ].getShortcut(), SIGNAL(activated()), this, SLOT(muteSoundVolume(void)) );
 	connect( Hotkeys[ HK_VOLUME_DOWN ].getShortcut(), SIGNAL(activated()), this, SLOT(decrSoundVolume(void)) );
 	connect( Hotkeys[ HK_VOLUME_UP   ].getShortcut(), SIGNAL(activated()), this, SLOT(incrSoundVolume(void)) );
 
@@ -2336,8 +2371,8 @@ void consoleWin_t::openROMFile(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string last;
-	char dir[512];
-	char *romDir;
+	std::string dir;
+	const char *romDir;
 	QFileDialog  dialog(this, tr("Open ROM File") );
 	QList<QUrl> urls;
 	QDir d;
@@ -2379,9 +2414,9 @@ void consoleWin_t::openROMFile(void)
 
 	g_config->getOption ("SDL.LastOpenFile", &last );
 
-	getDirFromFile( last.c_str(), dir );
+	getDirFromFile( last.c_str(), dir);
 
-	dialog.setDirectory( tr(dir) );
+	dialog.setDirectory( tr(dir.c_str()) );
 
 	// Check config option to use native file dialog or not
 	g_config->getOption ("SDL.UseNativeFileDialog", &useNativeFileDialogVal);
@@ -2439,8 +2474,8 @@ void consoleWin_t::loadNSF(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string last;
-	char dir[512];
-	char *romDir;
+	std::string dir;
+	const char *romDir;
 	QFileDialog  dialog(this, tr("Load NSF File") );
 	QList<QUrl> urls;
 	QDir d;
@@ -2474,7 +2509,7 @@ void consoleWin_t::loadNSF(void)
 
 	getDirFromFile( last.c_str(), dir );
 
-	dialog.setDirectory( tr(dir) );
+	dialog.setDirectory( tr(dir.c_str()) );
 
 	// Check config option to use native file dialog or not
 	g_config->getOption ("SDL.UseNativeFileDialog", &useNativeFileDialogVal);
@@ -2513,7 +2548,7 @@ void consoleWin_t::loadStateFrom(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string last;
-	char dir[512];
+	std::string dir;
 	const char *base;
 	QFileDialog  dialog(this, tr("Load State From File") );
 	QList<QUrl> urls;
@@ -2558,7 +2593,7 @@ void consoleWin_t::loadStateFrom(void)
 
 	getDirFromFile( last.c_str(), dir );
 
-	dialog.setDirectory( tr(dir) );
+	dialog.setDirectory( tr(dir.c_str()) );
 
 	// Check config option to use native file dialog or not
 	g_config->getOption ("SDL.UseNativeFileDialog", &useNativeFileDialogVal);
@@ -2597,7 +2632,7 @@ void consoleWin_t::saveStateAs(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string last;
-	char dir[512];
+	std::string dir;
 	const char *base;
 	QFileDialog  dialog(this, tr("Save State To File") );
 	QList<QUrl> urls;
@@ -2649,7 +2684,7 @@ void consoleWin_t::saveStateAs(void)
 	}
 	getDirFromFile( last.c_str(), dir );
 
-	dialog.setDirectory( tr(dir) );
+	dialog.setDirectory( tr(dir.c_str()) );
 
 	// Check config option to use native file dialog or not
 	g_config->getOption ("SDL.UseNativeFileDialog", &useNativeFileDialogVal);
@@ -3419,7 +3454,7 @@ void consoleWin_t::loadGameGenieROM(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string last;
-	char dir[512];
+	std::string dir;
 	QFileDialog  dialog(this, tr("Open Game Genie ROM") );
 	QList<QUrl> urls;
 
@@ -3440,7 +3475,7 @@ void consoleWin_t::loadGameGenieROM(void)
 
 	getDirFromFile( last.c_str(), dir );
 
-	dialog.setDirectory( tr(dir) );
+	dialog.setDirectory( tr(dir.c_str()) );
 
 	// Check config option to use native file dialog or not
 	g_config->getOption ("SDL.UseNativeFileDialog", &useNativeFileDialogVal);
@@ -3514,7 +3549,7 @@ void consoleWin_t::fdsLoadBiosFile(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string last;
-	char dir[512];
+	std::string dir;
 	QFileDialog  dialog(this, tr("Load FDS BIOS (disksys.rom)") );
 	QList<QUrl> urls;
 
@@ -3533,9 +3568,9 @@ void consoleWin_t::fdsLoadBiosFile(void)
 
 	g_config->getOption ("SDL.LastOpenFile", &last );
 
-	getDirFromFile( last.c_str(), dir );
+	getDirFromFile( last.c_str(), dir);
 
-	dialog.setDirectory( tr(dir) );
+	dialog.setDirectory( tr(dir.c_str()) );
 
 	// Check config option to use native file dialog or not
 	g_config->getOption ("SDL.UseNativeFileDialog", &useNativeFileDialogVal);
@@ -3648,6 +3683,9 @@ void consoleWin_t::emuSetFrameAdvDelay(void)
 	if ( QDialog::Accepted == ret )
 	{
 	   frameAdvance_Delay = dialog.intValue();
+
+	   g_config->setOption("SDL.FrameAdvanceDelay", frameAdvance_Delay );
+	   g_config->save();
 	}
 }
 
@@ -3745,6 +3783,13 @@ void consoleWin_t::setCustomAutoFire(void)
 		g_config->setOption("SDL.AutofireCustomOffFrames" , autoFireOffFrames);
 		g_config->save();
 	}
+}
+
+void consoleWin_t::muteSoundVolume(void)
+{
+	FCEU_WRAPPER_LOCK();
+	FCEUD_SoundToggle();
+	FCEU_WRAPPER_UNLOCK();
 }
 
 void consoleWin_t::incrSoundVolume(void)
@@ -4040,7 +4085,7 @@ void consoleWin_t::wavRecordStart(void)
 	if ( !FCEUI_WaveRecordRunning() )
 	{
 		const char *romFile;
-		char fileName[1024];
+		std::string fileName;
 
 		romFile = getRomFile();
 
@@ -4056,20 +4101,20 @@ void consoleWin_t::wavRecordStart(void)
 
 			if ( lastPath.size() > 0 )
 			{
-				strcpy( fileName, lastPath.c_str() );
-				strcat( fileName, "/" );
+				fileName.assign( lastPath );
+				fileName.append( "/" );
 			}
 			else if ( baseDir )
 			{
-				strcpy( fileName, baseDir );
-				strcat( fileName, "/wav/" );
+				fileName.assign( baseDir );
+				fileName.append( "/wav/" );
 			}
 			else
 			{
-				fileName[0] = 0;
+				fileName.clear();
 			}
-			strcat( fileName, base );
-			strcat( fileName, ".wav");
+			fileName.append( base );
+			fileName.append(".wav");
 			//printf("WAV Filepath:'%s'\n", fileName );
 		}
 		else
@@ -4077,7 +4122,7 @@ void consoleWin_t::wavRecordStart(void)
 			return;
 		}
 		FCEU_WRAPPER_LOCK();
-		FCEUI_BeginWaveRecord( fileName );
+		FCEUI_BeginWaveRecord( fileName.c_str() );
 		FCEU_WRAPPER_UNLOCK();
 	}
 }
@@ -4091,7 +4136,6 @@ void consoleWin_t::wavRecordAsStart(void)
 	int ret, useNativeFileDialogVal;
 	QString filename;
 	std::string lastPath;
-	//char dir[512];
 	const char *base, *rom;
 	QFileDialog  dialog(this, tr("Save WAV Movie for Recording") );
 	QList<QUrl> urls;
@@ -4231,9 +4275,9 @@ void consoleWin_t::openMsgLogWin(void)
 
 void consoleWin_t::openOnlineDocs(void)
 {
-	if ( QDesktopServices::openUrl( QUrl("http://fceux.com/web/help/fceux.html") ) == false )
+	if ( QDesktopServices::openUrl( QUrl("https://fceux.com/web/help/fceux.html") ) == false )
 	{
-		QueueErrorMsgWindow("Error: Failed to open link to: http://fceux.com/web/help/fceux.html");
+		QueueErrorMsgWindow("Error: Failed to open link to: https://fceux.com/web/help/fceux.html");
 	}
 	return;
 }
@@ -4814,7 +4858,16 @@ void consoleMenuBar::keyReleaseEvent(QKeyEvent *event)
 consoleRecentRomAction::consoleRecentRomAction(QString desc, QWidget *parent)
 	: QAction( desc, parent )
 {
+	QString txt;
+	QFileInfo fi(desc);
+
 	path = desc.toStdString();
+
+	txt  = fi.fileName();
+	txt += QString("\t");
+	txt += desc;
+
+	setText( txt );
 }
 //----------------------------------------------------------------------------
 consoleRecentRomAction::~consoleRecentRomAction(void)

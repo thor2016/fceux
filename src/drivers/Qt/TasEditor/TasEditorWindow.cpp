@@ -932,7 +932,7 @@ QMenuBar *TasEditorWindow::buildMenuBar(void)
 		actGroup->addAction(act);
 		patternMenu->addAction(act);
 
-		act->setChecked( taseditorConfig.currentPattern == i );
+		act->setChecked( static_cast<size_t>(taseditorConfig.currentPattern) == i );
 	}
 
 	// Help
@@ -6388,7 +6388,7 @@ void QPianoRoll::paintEvent(QPaintEvent *event)
 
 		lineNum = lineOffset + row;
 
-		if ( lineNum >= currMovieData.records.size() )
+		if ( static_cast<size_t>(lineNum) >= currMovieData.records.size() )
 		{
 			break;
 		}
@@ -7305,7 +7305,16 @@ void TasFindNoteWindow::findNextClicked(void)
 TasRecentProjectAction::TasRecentProjectAction(QString desc, QWidget *parent)
 	: QAction( desc, parent )
 {
+	QString txt;
+	QFileInfo fi(desc);
+
 	path = desc.toStdString();
+
+	txt  = fi.fileName();
+	txt += QString("\t");
+	txt += desc;
+
+	setText( txt );
 }
 //----------------------------------------------------------------------------
 TasRecentProjectAction::~TasRecentProjectAction(void)

@@ -41,6 +41,8 @@ if(WIN32)
      add_definitions( -DMSVC -D_CRT_SECURE_NO_WARNINGS )
      add_definitions( -D__SDL__  -D__QT_DRIVER__  -DQT_DEPRECATED_WARNINGS )
      add_definitions( -DFCEUDEF_DEBUGGER )
+     add_definitions( /wd4267 /wd4244 )
+     #add_definitions( /wd4018 ) # Integer comparison sign mismatch warnings
      include_directories( ${SDL_INSTALL_PREFIX}/SDL2/include )
      include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/drivers/win/zlib )
      set( OPENGL_LDFLAGS  OpenGL::GL )
@@ -76,7 +78,8 @@ else(WIN32)
   find_package(OpenGL REQUIRED)
   find_package(ZLIB REQUIRED)
 
-  add_definitions( -Wall  -Wno-write-strings  -Wno-sign-compare  -Wno-parentheses  -Wno-unused-local-typedefs  -fPIC )
+  add_definitions( -Wall  -Wno-write-strings  -Wno-parentheses  -Wno-unused-local-typedefs  -fPIC )
+  #add_definitions( -Wno-sign-compare )  # Integer comparison sign mismatch warnings
   add_definitions( -DFCEUDEF_DEBUGGER )
 
   #if ( ${QT6} )
@@ -275,6 +278,7 @@ set(SRC_CORE
   	${CMAKE_CURRENT_SOURCE_DIR}/conddebug.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/config.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/debug.cpp
+  	${CMAKE_CURRENT_SOURCE_DIR}/debugsymboltable.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/drawing.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/fceu.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/fds.cpp
@@ -346,6 +350,7 @@ set(SRC_CORE
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/32.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/33.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/34.cpp
+  	${CMAKE_CURRENT_SOURCE_DIR}/boards/354.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/36.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/3d-block.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/40.cpp
@@ -396,6 +401,7 @@ set(SRC_CORE
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/cheapocabra.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/cityfighter.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/coolboy.cpp
+  	${CMAKE_CURRENT_SOURCE_DIR}/boards/coolgirl.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/dance2000.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/datalatch.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/dream.cpp
@@ -467,6 +473,7 @@ set(SRC_CORE
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/vrc7.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/vrc7p.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/boards/yoko.cpp
+  	${CMAKE_CURRENT_SOURCE_DIR}/boards/inx007t.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/input/arkanoid.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/input/bworld.cpp
   	${CMAKE_CURRENT_SOURCE_DIR}/input/cursor.cpp
@@ -495,13 +502,13 @@ set(SRC_CORE
   	${CMAKE_CURRENT_SOURCE_DIR}/utils/guid.cpp    
   	${CMAKE_CURRENT_SOURCE_DIR}/utils/md5.cpp  
   	${CMAKE_CURRENT_SOURCE_DIR}/utils/memory.cpp
+  	${CMAKE_CURRENT_SOURCE_DIR}/utils/mutex.cpp
 )
 
 
 set(SRC_DRIVERS_COMMON
   ${CMAKE_CURRENT_SOURCE_DIR}/drivers/common/args.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/drivers/common/cheat.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/common/config.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/drivers/common/configSys.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/drivers/common/hq2x.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/drivers/common/hq3x.cpp

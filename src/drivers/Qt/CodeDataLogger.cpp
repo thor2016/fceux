@@ -63,7 +63,6 @@ int openCDLWindow( QWidget *parent )
 	{
 		cdlWin->activateWindow();
 		cdlWin->raise();
-		cdlWin->setFocus();
 	}
 	else
 	{
@@ -790,7 +789,14 @@ void InitCDLog(void)
 	if (!CHRram[0] || (CHRptr[0] == PRGptr[0]))
 	{ // Some kind of workaround for my OneBus VRAM hack, will remove it if I find another solution for that
 		cdloggerVideoDataSize = CHRsize[0];
-		cdloggervdata = (unsigned char *)malloc(cdloggerVideoDataSize);
+		if (cdloggerVideoDataSize > 0)
+		{
+			cdloggervdata = (unsigned char *)malloc(cdloggerVideoDataSize);
+		}
+		else
+		{
+			cdloggervdata = nullptr;
+		}
 	}
 	else
 	{
@@ -832,7 +838,10 @@ void ResetCDLog(void)
 		if (GameInfo->type != GIT_NSF)
 		{
 			undefinedvromcount = 8192;
-			memset(cdloggervdata, 0, 8192);
+			if (cdloggervdata != NULL)
+			{
+				memset(cdloggervdata, 0, 8192);
+			}
 		}
 	}
 	FCEU_WRAPPER_UNLOCK();

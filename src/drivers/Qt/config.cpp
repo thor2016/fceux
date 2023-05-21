@@ -295,6 +295,12 @@ int getHotKeyConfig( int i, const char **nameOut, const char **keySeqOut, const 
 		case HK_SELECT_STATE_PREV:
 			name = "SelectStatePrev"; keySeq = ""; title = "Select Previous State Slot"; group = "State";
 		break;
+		case HK_LOAD_PREV_STATE:
+			name = "LoadPrevState"; keySeq = ""; title = "Load Previous Recorded State"; group = "State";
+		break;
+		case HK_LOAD_NEXT_STATE:
+			name = "LoadNextState"; keySeq = ""; title = "Load Next Recorded State"; group = "State";
+		break;
 		case HK_VOLUME_MUTE:
 			name = "VolumeMute"; keySeq = ""; title = "Sound Volume Mute"; group = "Sound";
 		break;
@@ -686,6 +692,7 @@ InitConfig()
 	config->addOption("SDL.DebuggerBreakOnBadOpcodes", 0);
 	config->addOption("SDL.DebuggerBreakOnUnloggedCode", 0);
 	config->addOption("SDL.DebuggerBreakOnUnloggedData", 0);
+	config->addOption("SDL.DebugAutoStartTraceLogger", 0);
 
 	// Code Data Logger Options
 	config->addOption("autoSaveCDL"  , "SDL.AutoSaveCDL", 1);
@@ -746,6 +753,16 @@ InitConfig()
     // auto load/save on gameload/close
 	config->addOption("loadstate", "SDL.AutoLoadState", INVALID_STATE);
 	config->addOption("savestate", "SDL.AutoSaveState", INVALID_STATE);
+
+	config->addOption("SDL.StateRecorderEnable", false);
+	config->addOption("SDL.StateRecorderHistoryDurationMin", 15);
+	config->addOption("SDL.StateRecorderTimingMode", 0);
+	config->addOption("SDL.StateRecorderFramesBetweenSnaps", 60);
+	config->addOption("SDL.StateRecorderTimeBetweenSnapsMin", 0);
+	config->addOption("SDL.StateRecorderTimeBetweenSnapsSec", 3);
+	config->addOption("SDL.StateRecorderCompressionLevel", 0);
+	config->addOption("SDL.StateRecorderPauseOnLoad", 1);
+	config->addOption("SDL.StateRecorderPauseDuration", 3);
 
 	//TODO implement this
 	config->addOption("periodicsaves", "SDL.PeriodicSaves", 0);

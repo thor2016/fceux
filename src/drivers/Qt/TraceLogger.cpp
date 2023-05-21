@@ -57,6 +57,7 @@
 
 #include "common/os_utils.h"
 
+#include "Qt/ConsoleDebugger.h"
 #include "Qt/ConsoleWindow.h"
 #include "Qt/ConsoleUtilities.h"
 #include "Qt/TraceLogger.h"
@@ -1211,7 +1212,6 @@ void openTraceLoggerWindow(QWidget *parent)
 	{
 		traceLogWindow->activateWindow();
 		traceLogWindow->raise();
-		traceLogWindow->setFocus();
 		return;
 	}
 	//printf("Open Trace Logger Window\n");
@@ -1287,6 +1287,25 @@ int FCEUD_TraceLoggerStart(void)
 			initTraceLogBuffer(1000000);
 		}
 		logging = 1;
+	}
+	return logging;
+}
+//----------------------------------------------------
+int FCEUD_TraceLoggerStop(void)
+{
+	if (!logging)
+	{
+		return 0;
+	}
+	if (traceLogWindow)
+	{
+		traceLogWindow->toggleLoggingOnOff();
+	}
+	else
+	{
+		logging = 0;
+		msleep(1);
+		pushMsgToLogBuffer("Logging Finished");
 	}
 	return logging;
 }
@@ -2169,7 +2188,7 @@ void QTraceLogView::openBpEditWindow(int editIdx, watchpointinfo *wp, traceRecor
 					numWPs++;
 				}
 
-				updateAllDebuggerWindows();
+				updateAllDebuggerWindows(QAsmView::UPDATE_NO_SCROLL);
 			}
 		}
 	}
@@ -2214,7 +2233,7 @@ void QTraceLogView::openDebugSymbolEditWindow(int addr, int bank)
 
 	if (ret == QDialog::Accepted)
 	{
-		updateAllDebuggerWindows();
+		updateAllDebuggerWindows(QAsmView::UPDATE_NO_SCROLL);
 	}
 }
 //----------------------------------------------------------------------------
@@ -2488,6 +2507,7 @@ void QTraceLogView::paintEvent(QPaintEvent *event)
 TraceLogDiskThread_t::TraceLogDiskThread_t( QObject *parent )
 	: QThread(parent)
 {
+	setObjectName( QString("TraceLogDiskThread") );
 }
 //----------------------------------------------------
 TraceLogDiskThread_t::~TraceLogDiskThread_t(void)

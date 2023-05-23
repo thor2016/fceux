@@ -43,6 +43,12 @@ class NetPlayServer : public QTcpServer
 
 		void update(void);
 
+		int  sendMsg( NetPlayClient *client, void *msg, size_t msgSize);
+		int  sendRomLoadReq( NetPlayClient *client );
+		int  sendStateSyncReq( NetPlayClient *client );
+
+		void serverProcessMessage( NetPlayClient *client, void *msgBuf, size_t msgSize );
+
 	private:
 		static NetPlayServer *instance;
 
@@ -71,8 +77,15 @@ class NetPlayClient : public QObject
 		bool isConnected(void);
 
 		void setSocket(QTcpSocket *s);
+		QTcpSocket* getSocket(void){ return sock; };
 
 		void update(void);
+		int  readMessages( void (*msgCallback)( void *userData, void *msgBuf, size_t msgSize ), void *userData );
+		void clientProcessMessage( void *msgBuf, size_t msgSize );
+
+		QString userName;
+		int     role;
+		int     state;
 
 	private:
 		int createSocket(void);
@@ -80,6 +93,13 @@ class NetPlayClient : public QObject
 		static NetPlayClient *instance;
 
 		QTcpSocket *sock;
+		int     recvMsgId;
+		int     recvMsgSize;
+		int     recvMsgBytesLeft;
+		int     recvMsgByteIndex;
+		char   *recvMsgBuf;
+
+		static constexpr size_t recvMsgBufSize = 2 * 1024 * 1024;
 
 	public slots:
 		void onConnect(void);

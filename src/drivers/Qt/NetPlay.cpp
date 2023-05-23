@@ -18,8 +18,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <QDir>
+
+#include "../../fceu.h"
+#include "../../state.h"
 #include "Qt/NetPlay.h"
+#include "Qt/fceuWrapper.h"
 #include "Qt/ConsoleWindow.h"
+#include "Qt/ConsoleUtilities.h"
 #include "Qt/NetPlayMsgDef.h"
 
 //-----------------------------------------------------------------------------
@@ -84,6 +90,9 @@ void NetPlayServer::processPendingConnections(void)
 
 		printf("Added Client: %p   %zu\n", client, clientList.size() );
 
+		netPlayAuthReq msg;
+
+		sendMsg( client, &msg, sizeof(msg) );
 	}
 }
 
@@ -128,9 +137,137 @@ int NetPlayServer::closeAllConnections(void)
 }
 
 //-----------------------------------------------------------------------------
+int NetPlayServer::sendMsg( NetPlayClient *client, void *msg, size_t msgSize)
+{
+	QTcpSocket* sock;
+
+	sock = client->getSocket();
+
+	sock->write( static_cast<const char *>(msg), msgSize );
+
+	return 0;
+}
+//-----------------------------------------------------------------------------
+int NetPlayServer::sendRomLoadReq( NetPlayClient *client )
+{
+	constexpr size_t BufferSize = 64 * 1024;
+	char buf[BufferSize];
+	size_t bytesRead;
+	long fileSize = 0;
+	netPlayLoadRomReq msg;
+
+	const char *filepath = nullptr;
+
+	if ( GameInfo )
+	{
+		printf("filename: '%s' \n", GameInfo->filename );
+		printf("archiveFilename: '%s' \n", GameInfo->archiveFilename );
+
+		if (GameInfo->archiveFilename)
+		{
+			filepath = GameInfo->archiveFilename;
+		}
+		else
+		{
+			filepath = GameInfo->filename;
+		}
+	}
+	printf("Prep ROM Load Request: %s \n", filepath );
+
+	if (filepath == nullptr)
+	{
+		return -1;
+	}
+	FILE *fp = ::fopen( filepath, "r");
+
+	if (fp == nullptr)
+	{
+		return -1;
+	}
+	fseek( fp, 0, SEEK_END);
+
+	fileSize = ftell(fp);
+
+	rewind(fp);
+
+	msg.hdr.msgSize += fileSize;
+	msg.fileSize     = fileSize;
+	strncpy( msg.fileName, GameInfo->filename, sizeof(msg.fileName) );
+
+	printf("Sending ROM Load Request: %s  %lu\n", filepath, fileSize );
+	FCEUI_SetEmulationPaused(EMULATIONPAUSED_PAUSED);
+
+	sendMsg( client, &msg, sizeof(netPlayLoadRomReq) );
+
+	while ( (bytesRead = fread( buf, 1, sizeof(buf), fp )) > 0 )
+	{
+		sendMsg( client, buf, bytesRead );
+	}
+
+	::fclose(fp);
+
+	return 0;
+}
+//-----------------------------------------------------------------------------
+int NetPlayServer::sendStateSyncReq( NetPlayClient *client )
+{
+	EMUFILE_MEMORY em;
+	int compressionLevel = 1;
+	netPlayMsgHdr hdr(NETPLAY_SYNC_STATE);
+
+	if ( GameInfo == nullptr )
+	{
+		return -1;
+	}
+	FCEUSS_SaveMS( &em, compressionLevel );
+
+	hdr.msgSize += em.size();
+
+	printf("Sending ROM Sync Request\n");
+	FCEUI_SetEmulationPaused(EMULATIONPAUSED_PAUSED);
+
+	sendMsg( client, &hdr, sizeof(netPlayMsgHdr) );
+	sendMsg( client, em.buf(), em.size() );
+
+	return 0;
+}
+//-----------------------------------------------------------------------------
+static void serverMessageCallback( void *userData, void *msgBuf, size_t msgSize )
+{
+	NetPlayServer *server = NetPlayServer::GetInstance();
+
+	server->serverProcessMessage( static_cast<NetPlayClient*>(userData), msgBuf, msgSize );
+}
+//-----------------------------------------------------------------------------
+void NetPlayServer::serverProcessMessage( NetPlayClient *client, void *msgBuf, size_t msgSize )
+{
+	netPlayMsgHdr *hdr = (netPlayMsgHdr*)msgBuf;
+
+	printf("Server Received Message: ID: %i   Bytes:%zu\n", hdr->msgId, msgSize );
+
+	switch (hdr->msgId)
+	{
+		case NETPLAY_AUTH_RESP:
+		{
+			sendRomLoadReq( client );
+			sendStateSyncReq( client );
+		}
+		break;
+		default:
+
+		break;
+	}
+
+}
+//-----------------------------------------------------------------------------
 void NetPlayServer::update(void)
 {
+	for (auto it = clientList.begin(); it != clientList.end(); it++)
+	{
+		NetPlayClient *client = *it;
 
+		client->readMessages( serverMessageCallback, client );
+	}
 }
 //-----------------------------------------------------------------------------
 //--- NetPlayClient
@@ -138,11 +275,19 @@ void NetPlayServer::update(void)
 NetPlayClient *NetPlayClient::instance = nullptr;
 
 NetPlayClient::NetPlayClient(QObject *parent, bool outGoing)
-	: sock(nullptr)
+	: role(0), state(0), sock(nullptr), recvMsgId(-1), recvMsgSize(0),
+		recvMsgBytesLeft(0), recvMsgByteIndex(0), recvMsgBuf(nullptr)
 {
 	if (outGoing)
 	{
 		instance = this;
+	}
+
+	recvMsgBuf = static_cast<char*>( ::malloc( recvMsgBufSize ) );
+
+	if (recvMsgBuf == nullptr)
+	{
+		printf("Error: NetPlayClient failed to allocate recvMsgBuf\n");
 	}
 }
 
@@ -157,6 +302,10 @@ NetPlayClient::~NetPlayClient(void)
 	if (sock != nullptr)
 	{
 		delete sock; sock = nullptr;
+	}
+	if (recvMsgBuf)
+	{
+		::free(recvMsgBuf); recvMsgBuf = nullptr;
 	}
 	printf("NetPlayClient Destructor\n");
 }
@@ -238,9 +387,145 @@ void NetPlayClient::onDisconnect(void)
 	}
 }
 //-----------------------------------------------------------------------------
+static void clientMessageCallback( void *userData, void *msgBuf, size_t msgSize )
+{
+	NetPlayClient *client = static_cast<NetPlayClient*>(userData);
+
+	client->clientProcessMessage( msgBuf, msgSize );
+}
+//-----------------------------------------------------------------------------
 void NetPlayClient::update(void)
 {
+	readMessages( clientMessageCallback, this );
 
+}
+//-----------------------------------------------------------------------------
+int NetPlayClient::readMessages( void (*msgCallback)( void *userData, void *msgBuf, size_t msgSize ), void *userData )
+{
+	if (sock)
+	{
+		bool readReq;
+		netPlayMsgHdr *hdr;
+		const int netPlayMsgHdrSize = sizeof(netPlayMsgHdr);
+
+		readReq = sock->bytesAvailable() > 0;
+
+		while (readReq)
+		{
+			if (recvMsgBytesLeft > 0)
+			{
+				readReq = (sock->bytesAvailable() >= recvMsgBytesLeft);
+
+				if (readReq)
+				{
+					int dataRead;
+					size_t readSize = recvMsgBytesLeft;
+
+					dataRead = sock->read( &recvMsgBuf[recvMsgByteIndex], recvMsgBytesLeft );
+
+					if (dataRead > 0)
+					{
+						recvMsgBytesLeft -= dataRead;
+						recvMsgByteIndex += dataRead;
+					}
+					printf("   Data: Id: %u   Size: %zu  Read: %i\n", recvMsgId, readSize, dataRead );
+
+
+					if (recvMsgBytesLeft > 0)
+					{
+						readReq = (sock->bytesAvailable() >= recvMsgBytesLeft);
+					}
+					else
+					{
+						msgCallback( userData, recvMsgBuf, recvMsgSize );
+						readReq = (sock->bytesAvailable() > 0);
+					}
+				}
+			}
+			else if (sock->bytesAvailable() >= netPlayMsgHdrSize)
+			{
+				sock->read( recvMsgBuf, netPlayMsgHdrSize );
+
+				hdr = (netPlayMsgHdr*)recvMsgBuf;
+
+				recvMsgId   = hdr->msgId;
+				recvMsgSize = hdr->msgSize - sizeof(netPlayMsgHdr);
+				recvMsgBytesLeft = recvMsgSize;
+
+				if (hdr->msgSize > recvMsgBufSize)
+				{
+					printf("Error: Message size too large\n");
+				}
+				printf("HDR: Id: %u   Size: %u\n", hdr->msgId, hdr->msgSize );
+
+				recvMsgByteIndex = sizeof(netPlayMsgHdr);
+
+				readReq = (sock->bytesAvailable() >= recvMsgSize);
+			}
+			else
+			{
+				readReq = false;
+			}
+		}
+	}
+
+	return 0;
+}
+//-----------------------------------------------------------------------------
+void NetPlayClient::clientProcessMessage( void *msgBuf, size_t msgSize )
+{
+	netPlayMsgHdr *hdr = (netPlayMsgHdr*)msgBuf;
+
+	switch (hdr->msgId)
+	{
+		case NETPLAY_AUTH_REQ:
+		{
+			netPlayAuthResp msg;
+
+			sock->write( (const char*)&msg, sizeof(netPlayAuthResp) );
+		}
+		break;
+		case NETPLAY_LOAD_ROM_REQ:
+		{
+			FILE *fp;
+			std::string filepath = QDir::tempPath().toStdString(); 
+			netPlayLoadRomReq *msg = static_cast<netPlayLoadRomReq*>(msgBuf);
+			const char *romData = &static_cast<const char*>(msgBuf)[ sizeof(netPlayLoadRomReq) ];
+
+			filepath.append( "/" );
+			filepath.append( msg->fileName );
+
+			//printf("Dumping Temp Rom to: %s\n", filepath.c_str());
+			fp = ::fopen( filepath.c_str(), "w");
+
+			if (fp == nullptr)
+			{
+				return;
+			}
+			::fwrite( romData, 1, msgSize, fp );
+			::fclose(fp);
+
+			FCEU_WRAPPER_LOCK();
+			LoadGame( filepath.c_str(), true );
+			FCEUI_SetEmulationPaused(EMULATIONPAUSED_PAUSED);
+			FCEU_WRAPPER_UNLOCK();
+		}
+		break;
+		case NETPLAY_SYNC_STATE:
+		{
+			char *stateData = &static_cast<char*>(msgBuf)[ sizeof(netPlayMsgHdr) ];
+
+			EMUFILE_MEMORY em( stateData, msgSize );
+
+			em.fseek(SEEK_SET, 0);
+
+			FCEUSS_LoadFP( &em, SSLOADPARAM_NOBACKUP );
+		}
+		break;
+		default:
+
+		break;
+	}
 }
 //-----------------------------------------------------------------------------
 //--- NetPlayHostDialog

@@ -11,6 +11,7 @@ enum netPlayMsgType
 {
 	NETPLAY_AUTH_REQ,
 	NETPLAY_AUTH_RESP,
+	NETPLAY_LOAD_ROM_REQ,
 	NETPLAY_SYNC_STATE,
 	NETPLAY_RUN_FRAME_REQ,
 	NETPLAY_RUN_FRAME_RESP,
@@ -56,6 +57,20 @@ struct netPlayAuthResp
 		: hdr(NETPLAY_AUTH_RESP, sizeof(netPlayAuthResp)), ctrlId(0)
 	{
 		memset(pswd, 0, sizeof(pswd));
+	}
+};
+
+struct netPlayLoadRomReq
+{
+	netPlayMsgHdr  hdr;
+
+	uint32_t  fileSize;
+	char fileName[256];
+
+	netPlayLoadRomReq(void)
+		: hdr(NETPLAY_LOAD_ROM_REQ, sizeof(netPlayLoadRomReq)), fileSize(0)
+	{
+		memset(fileName, 0, sizeof(fileName));
 	}
 };
 

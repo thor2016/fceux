@@ -21,6 +21,7 @@
 /// \brief Handles emulation speed throttling using the SDL timing functions.
 
 #include "Qt/sdl.h"
+#include "Qt/NetPlay.h"
 #include "Qt/throttle.h"
 #include "utils/timeStamp.h"
 
@@ -457,7 +458,8 @@ SpeedThrottle(void)
 			Nexttime = Lasttime + DesiredFrameTime;
 			Latetime = Nexttime + HalfFrameTime;
 		}
-		return 0; /* Done waiting */
+		// Tie in NetPlay, if active ensure that frame inputs are ready
+		return NetPlayFrameWait(); /* Done waiting */
 	}
 
 	return 1; /* Must still wait some more */

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include <list>
 
 #include <QWidget>
@@ -23,7 +26,38 @@
 #include <QTcpSocket>
 #include <QTcpServer>
 
+#include "utils/mutex.h"
+
 class NetPlayClient;
+
+struct NetPlayFrameInput
+{
+	static constexpr uint32_t ownsData = 0x01;
+
+	NetPlayFrameInput(void)
+	{
+		flags = 0; frameCounter = 0; 
+		ctrl[0] = ctrl[1] = ctrl[2] = ctrl[3] = 0;
+		data = nullptr;
+	}
+
+	~NetPlayFrameInput()
+	{
+		if (data)
+		{
+			if (flags & ownsData)
+			{
+				::free(data);
+				data = nullptr;
+			}
+		}
+	}
+
+	uint32_t  flags;
+	uint32_t  frameCounter;
+	uint8_t   ctrl[4];
+	uint8_t  *data;
+};
 
 class NetPlayServer : public QTcpServer
 {
@@ -43,6 +77,30 @@ class NetPlayServer : public QTcpServer
 
 		void update(void);
 
+		bool inputAvailable(void)
+		{
+			FCEU::autoScopedLock alock(inputMtx);
+		       	return !input.empty();
+		};
+
+		void pushBackInput( NetPlayFrameInput &in )
+		{
+			FCEU::autoScopedLock alock(inputMtx);
+			input.push_back(in);
+		};
+
+		NetPlayFrameInput getNextInput(void)
+		{
+			NetPlayFrameInput in;
+			FCEU::autoScopedLock alock(inputMtx);
+			if (!input.empty())
+			{
+				in = input.front();
+				input.pop_front();
+			}
+			return in;
+		};
+
 		int  sendMsg( NetPlayClient *client, void *msg, size_t msgSize);
 		int  sendRomLoadReq( NetPlayClient *client );
 		int  sendStateSyncReq( NetPlayClient *client );
@@ -55,6 +113,8 @@ class NetPlayServer : public QTcpServer
 		void processPendingConnections(void);
 
 		std::list <NetPlayClient*> clientList;
+		std::list <NetPlayFrameInput> input;
+		FCEU::mutex inputMtx;
 
 	public slots:
 		void newConnectionRdy(void);
@@ -83,6 +143,31 @@ class NetPlayClient : public QObject
 		int  readMessages( void (*msgCallback)( void *userData, void *msgBuf, size_t msgSize ), void *userData );
 		void clientProcessMessage( void *msgBuf, size_t msgSize );
 
+		bool inputAvailable(void)
+		{
+			FCEU::autoScopedLock alock(inputMtx);
+		       	return !input.empty();
+		};
+
+		void pushBackInput( NetPlayFrameInput &in )
+		{
+			FCEU::autoScopedLock alock(inputMtx);
+			input.push_back(in);
+		};
+
+		NetPlayFrameInput getNextInput(void)
+		{
+			NetPlayFrameInput in;
+			FCEU::autoScopedLock alock(inputMtx);
+			if (!input.empty())
+			{
+				in = input.front();
+				input.pop_front();
+			}
+			return in;
+		};
+
+
 		QString userName;
 		int     role;
 		int     state;
@@ -98,6 +183,9 @@ class NetPlayClient : public QObject
 		int     recvMsgBytesLeft;
 		int     recvMsgByteIndex;
 		char   *recvMsgBuf;
+
+		std::list <NetPlayFrameInput> input;
+		FCEU::mutex inputMtx;
 
 		static constexpr size_t recvMsgBufSize = 2 * 1024 * 1024;
 
@@ -147,4 +235,6 @@ public slots:
 
 };
 
+bool NetPlayActive(void);
 void NetPlayPeriodicUpdate(void);
+int NetPlayFrameWait(void);

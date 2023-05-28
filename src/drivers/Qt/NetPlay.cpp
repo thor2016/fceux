@@ -22,6 +22,10 @@
 
 #include "../../fceu.h"
 #include "../../state.h"
+#include "../../movie.h"
+#include "Qt/main.h"
+#include "Qt/dface.h"
+#include "Qt/input.h"
 #include "Qt/NetPlay.h"
 #include "Qt/fceuWrapper.h"
 #include "Qt/ConsoleWindow.h"
@@ -251,6 +255,7 @@ void NetPlayServer::serverProcessMessage( NetPlayClient *client, void *msgBuf, s
 		{
 			sendRomLoadReq( client );
 			sendStateSyncReq( client );
+			client->state = 1;
 		}
 		break;
 		default:
@@ -262,12 +267,44 @@ void NetPlayServer::serverProcessMessage( NetPlayClient *client, void *msgBuf, s
 //-----------------------------------------------------------------------------
 void NetPlayServer::update(void)
 {
+	// Input Processing
 	for (auto it = clientList.begin(); it != clientList.end(); it++)
 	{
 		NetPlayClient *client = *it;
 
 		client->readMessages( serverMessageCallback, client );
 	}
+
+	// Output Processing
+	NetPlayFrameInput  inputFrame;
+	netPlayRunFrameReq  runFrameReq;
+
+	uint32_t ctlrData = GetGamepadPressedImmediate();
+
+	inputFrame.frameCounter = static_cast<uint32_t>(currFrameCounter) + 1;
+	inputFrame.ctrl[0] = (ctlrData      ) & 0x000000ff;
+	inputFrame.ctrl[1] = (ctlrData >>  8) & 0x000000ff;
+	inputFrame.ctrl[2] = (ctlrData >> 16) & 0x000000ff;
+	inputFrame.ctrl[3] = (ctlrData >> 24) & 0x000000ff;
+
+	runFrameReq.frameNum     = inputFrame.frameCounter;
+	runFrameReq.ctrlState[0] = inputFrame.ctrl[0];
+	runFrameReq.ctrlState[1] = inputFrame.ctrl[1];
+	runFrameReq.ctrlState[2] = inputFrame.ctrl[2];
+	runFrameReq.ctrlState[3] = inputFrame.ctrl[3];
+
+	pushBackInput( inputFrame );
+
+	for (auto it = clientList.begin(); it != clientList.end(); it++)
+	{
+		NetPlayClient *client = *it;
+
+		if (client->state > 0)
+		{
+			sendMsg( client, &runFrameReq, sizeof(runFrameReq) );
+		}
+	}
+	
 }
 //-----------------------------------------------------------------------------
 //--- NetPlayClient
@@ -517,9 +554,21 @@ void NetPlayClient::clientProcessMessage( void *msgBuf, size_t msgSize )
 
 			EMUFILE_MEMORY em( stateData, msgSize );
 
-			em.fseek(SEEK_SET, 0);
-
 			FCEUSS_LoadFP( &em, SSLOADPARAM_NOBACKUP );
+		}
+		break;
+		case NETPLAY_RUN_FRAME_REQ:
+		{
+			NetPlayFrameInput  inputFrame;
+			netPlayRunFrameReq *msg = static_cast<netPlayRunFrameReq*>(msgBuf);
+
+			inputFrame.frameCounter = msg->frameNum;
+			inputFrame.ctrl[0] = msg->ctrlState[0];
+			inputFrame.ctrl[1] = msg->ctrlState[1];
+			inputFrame.ctrl[2] = msg->ctrlState[2];
+			inputFrame.ctrl[3] = msg->ctrlState[3];
+
+			pushBackInput( inputFrame );
 		}
 		break;
 		default:
@@ -714,6 +763,11 @@ void NetPlayJoinDialog::onJoinClicked(void)
 //----------------------------------------------------------------------------
 //---- Global Functions
 //----------------------------------------------------------------------------
+bool NetPlayActive(void)
+{
+	return (NetPlayClient::GetInstance() != nullptr) || (NetPlayServer::GetInstance() != nullptr);
+}
+//----------------------------------------------------------------------------
 void NetPlayPeriodicUpdate(void)
 {
 	NetPlayClient *client = NetPlayClient::GetInstance();
@@ -730,3 +784,25 @@ void NetPlayPeriodicUpdate(void)
 		server->update();
 	}
 }
+//----------------------------------------------------------------------------
+int NetPlayFrameWait(void)
+{
+	int wait = 0;
+	NetPlayClient *client = NetPlayClient::GetInstance();
+
+	if (client)
+	{
+		wait = !client->inputAvailable();
+	}
+	else
+	{
+		NetPlayServer *server = NetPlayServer::GetInstance();
+
+		if (server)
+		{
+			wait = !server->inputAvailable();
+		}
+	}
+	return wait;
+}
+//----------------------------------------------------------------------------

@@ -79,16 +79,30 @@ struct netPlayRunFrameReq
 {
 	netPlayMsgHdr  hdr;
 
+	uint32_t  flags;
 	uint32_t  frameNum;
-	uint32_t  ctrlState;
+	uint8_t   ctrlState[4];
+
+	netPlayRunFrameReq(void)
+		: hdr(NETPLAY_RUN_FRAME_REQ, sizeof(netPlayRunFrameReq)), flags(0), frameNum(0) 
+	{
+		memset( ctrlState, 0, sizeof(ctrlState) );
+	}
 };
 
 struct netPlayRunFrameResp
 {
 	netPlayMsgHdr  hdr;
 
+	uint32_t  flags;
 	uint32_t  frameNum;
-	uint32_t  ctrlState;
+	uint8_t   ctrlState[4];
+
+	netPlayRunFrameResp(void)
+		: hdr(NETPLAY_RUN_FRAME_RESP, sizeof(netPlayRunFrameResp)), flags(0), frameNum(0) 
+	{
+		memset( ctrlState, 0, sizeof(ctrlState) );
+	}
 };
 
 #pragma pack(pop)
